@@ -26,16 +26,21 @@ export class AuthService {
     const clientSecret = this.configService.get('CLIENT_SECRET');
     const redirectUri = this.configService.get('REDIRECT_URI');
 
+    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
     const response = await axios.post(
       'https://login.infomaniak.com/token',
       new URLSearchParams({
         grant_type: 'authorization_code',
         code: code,
         redirect_uri: redirectUri,
-        client_id: clientId,
-        client_secret: clientSecret,
       }),
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': `Basic ${basicAuth}`,
+        }
+      },
     );
 
     return response.data;
@@ -45,15 +50,20 @@ export class AuthService {
     const clientId = this.configService.get('CLIENT_ID');
     const clientSecret = this.configService.get('CLIENT_SECRET');
 
+    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
     const response = await axios.post(
       'https://login.infomaniak.com/token',
       new URLSearchParams({
         grant_type: 'refresh_token',
         refresh_token: refreshToken,
-        client_id: clientId,
-        client_secret: clientSecret,
       }),
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': `Basic ${basicAuth}`,
+        }
+      },
     );
 
     return response.data;
