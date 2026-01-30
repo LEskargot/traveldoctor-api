@@ -24,7 +24,7 @@ export class KdriveService {
   }
 
   private getKdriveId(): string {
-    return this.configService.get('KDRIVE_ID');
+    return this.configService.get('KDRIVE_ID') || '';
   }
 
   async findFolderByPath(userId: string): Promise<number | null> {
