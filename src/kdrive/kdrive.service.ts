@@ -4,7 +4,7 @@ import axios from 'axios';
 
 @Injectable()
 export class KdriveService {
-  private baseUrl = 'https://api.infomaniak.com/2/drive';
+  private baseUrl = 'https://api.infomaniak.com/3/drive';
 
   constructor(private configService: ConfigService) {}
 

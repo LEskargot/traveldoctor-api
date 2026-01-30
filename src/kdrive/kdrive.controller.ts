@@ -30,7 +30,11 @@ export class KdriveController {
       return { success: true, files };
     } catch (error) {
       throw new HttpException(
-        error.message || 'Failed to list files',
+        {
+          message: error.message || 'Failed to list files',
+          details: error.response?.data,
+          status: error.response?.status,
+        },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
