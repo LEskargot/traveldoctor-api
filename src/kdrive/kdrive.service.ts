@@ -1,24 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AuthService } from '../auth/auth.service';
 import axios from 'axios';
 
 @Injectable()
 export class KdriveService {
-  private baseUrl = 'https://api.infomaniak.com/3/drive';
+  private baseUrl = 'https://api.infomaniak.com/2/drive';
 
-  constructor(
-    private configService: ConfigService,
-    private authService: AuthService,
-  ) {}
+  constructor(private configService: ConfigService) {}
 
-  private async getHeaders(userId: string) {
-    const accessToken = await this.authService.getValidAccessToken(userId);
-    if (!accessToken) {
-      throw new Error('Not authenticated');
-    }
+  private getHeaders(token: string) {
     return {
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     };
   }
@@ -27,13 +19,13 @@ export class KdriveService {
     return this.configService.get('KDRIVE_ID') || '';
   }
 
-  async findFolderByPath(userId: string): Promise<number | null> {
-    const folderPath = this.configService.get('FOLDER_PATH');
+  async findFolderByPath(token: string): Promise<number | null> {
+    const folderPath = this.configService.get('FOLDER_PATH') || '';
     const parts = folderPath.split('/').filter((p) => p);
     const kdriveId = this.getKdriveId();
-    const headers = await this.getHeaders(userId);
+    const headers = this.getHeaders(token);
 
-    let currentFolderId = null; // root
+    let currentFolderId: number | null = null;
 
     for (const part of parts) {
       const url = currentFolderId
@@ -55,14 +47,14 @@ export class KdriveService {
     return currentFolderId;
   }
 
-  async listPatientFiles(userId: string): Promise<any[]> {
-    const folderId = await this.findFolderByPath(userId);
+  async listPatientFiles(token: string): Promise<any[]> {
+    const folderId = await this.findFolderByPath(token);
     if (!folderId) {
-      throw new Error('Folder not found');
+      throw new Error('Folder not found: ' + this.configService.get('FOLDER_PATH'));
     }
 
     const kdriveId = this.getKdriveId();
-    const headers = await this.getHeaders(userId);
+    const headers = this.getHeaders(token);
 
     const response = await axios.get(
       `${this.baseUrl}/${kdriveId}/files/${folderId}/files`,
@@ -79,9 +71,9 @@ export class KdriveService {
       }));
   }
 
-  async getFile(userId: string, fileId: number): Promise<any> {
+  async getFile(token: string, fileId: number): Promise<any> {
     const kdriveId = this.getKdriveId();
-    const headers = await this.getHeaders(userId);
+    const headers = this.getHeaders(token);
 
     // Get file download URL
     const response = await axios.get(
@@ -95,44 +87,64 @@ export class KdriveService {
   }
 
   async saveFile(
-    userId: string,
+    token: string,
     fileId: number | null,
     fileName: string,
     content: any,
   ): Promise<any> {
     const kdriveId = this.getKdriveId();
-    const headers = await this.getHeaders(userId);
+    const headers = this.getHeaders(token);
 
     if (fileId) {
-      // Update existing file
-      const response = await axios.put(
-        `${this.baseUrl}/${kdriveId}/files/${fileId}/content`,
-        content,
-        { headers: { ...headers, 'Content-Type': 'application/json' } },
+      // Update existing file - upload new content
+      const uploadUrl = `${this.baseUrl}/${kdriveId}/files/${fileId}/upload`;
+      const response = await axios.post(
+        uploadUrl,
+        JSON.stringify(content),
+        {
+          headers: {
+            ...headers,
+            'Content-Type': 'application/octet-stream'
+          }
+        },
       );
       return response.data;
     } else {
-      // Create new file
-      const folderId = await this.findFolderByPath(userId);
+      // Create new file in the folder
+      const folderId = await this.findFolderByPath(token);
       if (!folderId) {
         throw new Error('Folder not found');
       }
 
-      const response = await axios.post(
+      // First create empty file, then upload content
+      const createResponse = await axios.post(
         `${this.baseUrl}/${kdriveId}/files/${folderId}/file`,
-        {
-          name: fileName,
-          content: JSON.stringify(content),
-        },
+        { name: fileName },
         { headers },
       );
-      return response.data;
+
+      const newFileId = createResponse.data.data.id;
+
+      // Upload content to the new file
+      const uploadUrl = `${this.baseUrl}/${kdriveId}/files/${newFileId}/upload`;
+      await axios.post(
+        uploadUrl,
+        JSON.stringify(content),
+        {
+          headers: {
+            ...headers,
+            'Content-Type': 'application/octet-stream'
+          }
+        },
+      );
+
+      return createResponse.data;
     }
   }
 
-  async deleteFile(userId: string, fileId: number): Promise<void> {
+  async deleteFile(token: string, fileId: number): Promise<void> {
     const kdriveId = this.getKdriveId();
-    const headers = await this.getHeaders(userId);
+    const headers = this.getHeaders(token);
 
     await axios.delete(`${this.baseUrl}/${kdriveId}/files/${fileId}`, {
       headers,

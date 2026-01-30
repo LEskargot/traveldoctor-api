@@ -5,7 +5,7 @@ import {
   Delete,
   Param,
   Body,
-  Query,
+  Headers,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
@@ -15,13 +15,18 @@ import { KdriveService } from './kdrive.service';
 export class KdriveController {
   constructor(private kdriveService: KdriveService) {}
 
-  @Get()
-  async listFiles(@Query('userId') userId: string) {
-    if (!userId) {
-      throw new HttpException('userId required', HttpStatus.BAD_REQUEST);
+  private extractToken(authHeader: string): string {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new HttpException('Missing or invalid Authorization header', HttpStatus.UNAUTHORIZED);
     }
+    return authHeader.substring(7);
+  }
+
+  @Get()
+  async listFiles(@Headers('authorization') authHeader: string) {
+    const token = this.extractToken(authHeader);
     try {
-      const files = await this.kdriveService.listPatientFiles(userId);
+      const files = await this.kdriveService.listPatientFiles(token);
       return { success: true, files };
     } catch (error) {
       throw new HttpException(
@@ -32,12 +37,13 @@ export class KdriveController {
   }
 
   @Get(':id')
-  async getFile(@Param('id') id: string, @Query('userId') userId: string) {
-    if (!userId) {
-      throw new HttpException('userId required', HttpStatus.BAD_REQUEST);
-    }
+  async getFile(
+    @Param('id') id: string,
+    @Headers('authorization') authHeader: string,
+  ) {
+    const token = this.extractToken(authHeader);
     try {
-      const content = await this.kdriveService.getFile(userId, parseInt(id));
+      const content = await this.kdriveService.getFile(token, parseInt(id));
       return { success: true, content };
     } catch (error) {
       throw new HttpException(
@@ -50,16 +56,14 @@ export class KdriveController {
   @Put(':id')
   async updateFile(
     @Param('id') id: string,
-    @Query('userId') userId: string,
+    @Headers('authorization') authHeader: string,
     @Body() body: { fileName: string; content: any },
   ) {
-    if (!userId) {
-      throw new HttpException('userId required', HttpStatus.BAD_REQUEST);
-    }
+    const token = this.extractToken(authHeader);
     try {
       const fileId = id === 'new' ? null : parseInt(id);
       const result = await this.kdriveService.saveFile(
-        userId,
+        token,
         fileId,
         body.fileName,
         body.content,
@@ -74,12 +78,13 @@ export class KdriveController {
   }
 
   @Delete(':id')
-  async deleteFile(@Param('id') id: string, @Query('userId') userId: string) {
-    if (!userId) {
-      throw new HttpException('userId required', HttpStatus.BAD_REQUEST);
-    }
+  async deleteFile(
+    @Param('id') id: string,
+    @Headers('authorization') authHeader: string,
+  ) {
+    const token = this.extractToken(authHeader);
     try {
-      await this.kdriveService.deleteFile(userId, parseInt(id));
+      await this.kdriveService.deleteFile(token, parseInt(id));
       return { success: true };
     } catch (error) {
       throw new HttpException(
