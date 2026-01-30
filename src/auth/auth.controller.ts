@@ -33,7 +33,8 @@ export class AuthController {
       // Redirect back to app with user ID
       res.redirect(`https://traveldoctor.ch/app?userId=${userId}&login=success`);
     } catch (error) {
-      res.redirect(`https://traveldoctor.ch/app?login=error`);
+      // Temporarily show error for debugging
+      res.status(500).json({ error: error.message, details: error.response?.data });
     }
   }
 
